@@ -1,0 +1,808 @@
+openapi: 3.0.3
+info:
+  title: BARATEX API
+  version: 1.0.0
+  description: >
+    API RESTful do ecossistema BARATEX para agendamento de serviços
+    automotivos. Porte para PHP/Laravel da API original (Java/Spring Boot).
+  contact:
+    name: Suporte BARATEX
+    email: suporte@baratex.com
+servers:
+  - url: /api
+tags:
+  - name: Autenticação
+  - name: Oficinas
+  - name: Serviços
+  - name: Motoristas
+  - name: Veículos
+  - name: Modelos de Veículos
+  - name: Agendamentos
+  - name: Avaliações
+  - name: Chat
+  - name: Garagem Virtual
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErroResposta:
+      type: object
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer, example: 400 }
+        erro: { type: string, example: "Regra de Negócio Violada" }
+        mensagem: { type: string, nullable: true }
+        path: { type: string }
+        errosValidacao:
+          type: object
+          nullable: true
+          additionalProperties: { type: string }
+
+    TipoUsuario:
+      type: string
+      enum: [MOTORISTA, OFICINA, ADMIN]
+
+    StatusAgendamento:
+      type: string
+      enum: [PENDENTE, CONFIRMADO, EM_ANDAMENTO, CONCLUIDO, CANCELADO]
+
+    UsuarioDTO:
+      type: object
+      required: [nome, email, senhaHash, telefone]
+      properties:
+        nome: { type: string }
+        email: { type: string, format: email }
+        senhaHash: { type: string, description: "Senha em texto puro; é hasheada no servidor (bcrypt)." }
+        telefone: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [email, senha]
+      properties:
+        email: { type: string, format: email }
+        senha: { type: string }
+
+    LoginResponse:
+      type: object
+      properties:
+        token: { type: string }
+        tipo: { type: string, example: Bearer }
+        usuarioId: { type: string, format: uuid }
+        nome: { type: string }
+        email: { type: string }
+        tipoUsuario: { $ref: '#/components/schemas/TipoUsuario' }
+
+    RegisterRequest:
+      type: object
+      required: [nome, email, senha, tipoUsuario]
+      properties:
+        nome: { type: string }
+        email: { type: string, format: email }
+        senha: { type: string }
+        telefone: { type: string, nullable: true }
+        cpf: { type: string, nullable: true, description: "Obrigatório quando tipoUsuario = MOTORISTA." }
+        tipoUsuario: { $ref: '#/components/schemas/TipoUsuario' }
+
+    EnderecoDTO:
+      type: object
+      properties:
+        logradouro: { type: string }
+        numero: { type: string }
+        bairro: { type: string }
+        cidade: { type: string }
+        estado: { type: string, maxLength: 2 }
+        cep: { type: string }
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+
+    OficinaRequest:
+      type: object
+      required: [razaoSocial, nomeFantasia, cnpj, usuario, endereco]
+      properties:
+        razaoSocial: { type: string }
+        nomeFantasia: { type: string }
+        cnpj: { type: string }
+        usuario: { $ref: '#/components/schemas/UsuarioDTO' }
+        endereco: { $ref: '#/components/schemas/EnderecoDTO' }
+
+    OficinaResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        razaoSocial: { type: string }
+        nomeFantasia: { type: string }
+        cnpj: { type: string }
+        nomeUsuario: { type: string }
+        email: { type: string }
+        telefone: { type: string }
+        logradouro: { type: string }
+        numero: { type: string }
+        bairro: { type: string }
+        cidade: { type: string }
+        estado: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+
+    ServicoRequest:
+      type: object
+      required: [nome, preco, oficinaId]
+      properties:
+        nome: { type: string }
+        descricao: { type: string, nullable: true }
+        preco: { type: number, format: double }
+        tempoEstimadoMinutos: { type: integer, nullable: true }
+        oficinaId: { type: string, format: uuid }
+
+    Servico:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        oficinaId: { type: string, format: uuid }
+        nome: { type: string }
+        descricao: { type: string, nullable: true }
+        precoBase: { type: number }
+        tempoEstimadoMinutos: { type: integer, nullable: true }
+
+    MotoristaRequest:
+      type: object
+      required: [cpf, usuario]
+      properties:
+        cpf: { type: string, pattern: '^\d{11}$' }
+        usuario: { $ref: '#/components/schemas/UsuarioDTO' }
+
+    MotoristaResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        cpf: { type: string }
+        nome: { type: string }
+        email: { type: string }
+        telefone: { type: string }
+
+    MarcaDTO:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nome: { type: string }
+
+    ModeloVeiculoDTO:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        nomeModelo: { type: string }
+        anoInicio: { type: integer }
+        anoFim: { type: integer, nullable: true }
+
+    VeiculoRequest:
+      type: object
+      required: [placa, modeloId, ano]
+      properties:
+        placa: { type: string }
+        modeloId: { type: string, format: uuid }
+        ano: { type: integer }
+        cor: { type: string, nullable: true }
+
+    VeiculoResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        placa: { type: string }
+        marca: { type: string }
+        modelo: { type: string }
+        ano: { type: integer }
+        cor: { type: string, nullable: true }
+
+    ItemAgendamentoRequest:
+      type: object
+      required: [servicoId]
+      properties:
+        servicoId: { type: string, format: uuid }
+        precoPraticado: { type: number, nullable: true }
+
+    AgendamentoRequest:
+      type: object
+      required: [oficinaId, veiculoId, dataHora, itens]
+      properties:
+        oficinaId: { type: string, format: uuid }
+        veiculoId: { type: string, format: uuid }
+        dataHora: { type: string, format: date-time }
+        itens:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ItemAgendamentoRequest' }
+
+    Agendamento:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        oficinaId: { type: string, format: uuid }
+        veiculoId: { type: string, format: uuid }
+        dataHora: { type: string, format: date-time }
+        status: { $ref: '#/components/schemas/StatusAgendamento' }
+        valorTotal: { type: number }
+        itens:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              servicoId: { type: string, format: uuid }
+              precoPraticado: { type: number }
+        oficina:
+          type: object
+          nullable: true
+          description: "Resumo (sem equivalente na API original); presente quando a relação é carregada."
+          properties:
+            id: { type: string, format: uuid }
+            nomeFantasia: { type: string }
+        veiculo:
+          type: object
+          nullable: true
+          description: "Resumo (sem equivalente na API original); presente quando a relação é carregada."
+          properties:
+            id: { type: string, format: uuid }
+            placa: { type: string }
+            marca: { type: string, nullable: true }
+            modelo: { type: string, nullable: true }
+            motoristaNome: { type: string, nullable: true }
+
+    AvaliacaoRequest:
+      type: object
+      required: [agendamentoId, nota]
+      properties:
+        agendamentoId: { type: string, format: uuid }
+        nota: { type: integer, minimum: 1, maximum: 5 }
+        comentario: { type: string, nullable: true }
+
+    Avaliacao:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        agendamentoId: { type: string, format: uuid }
+        nota: { type: integer }
+        comentario: { type: string, nullable: true }
+        criadoEm: { type: string, format: date-time }
+
+    MensagemChatRequest:
+      type: object
+      required: [agendamentoId, remetenteId, conteudo]
+      properties:
+        agendamentoId: { type: string, format: uuid }
+        remetenteId: { type: string, format: uuid }
+        conteudo: { type: string }
+
+    MensagemChat:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        agendamentoId: { type: string, format: uuid }
+        remetenteId: { type: string, format: uuid }
+        conteudo: { type: string }
+        enviadoEm: { type: string, format: date-time }
+
+    GaragemVirtualRequest:
+      type: object
+      required: [agendamentoId, dataServico, quilometragemRegistro, descricaoServico]
+      properties:
+        agendamentoId: { type: string, format: uuid }
+        dataServico: { type: string, format: date }
+        quilometragemRegistro: { type: integer }
+        descricaoServico: { type: string }
+        validadoOficina: { type: boolean, default: false }
+
+    GaragemVirtual:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        agendamentoId: { type: string, format: uuid }
+        dataServico: { type: string, format: date }
+        quilometragemRegistro: { type: integer }
+        descricaoServico: { type: string }
+        validadoOficina: { type: boolean }
+        dataValidacao: { type: string, format: date-time, nullable: true }
+
+  responses:
+    ErroValidacao:
+      description: Erro de validação (422)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErroResposta' }
+    ErroNegocio:
+      description: Regra de negócio violada (400)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErroResposta' }
+    NaoAutenticado:
+      description: Token JWT ausente ou inválido (401)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErroResposta' }
+
+paths:
+  /auth/login:
+    post:
+      tags: [Autenticação]
+      summary: Autentica um usuário e retorna um token JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Login efetuado com sucesso
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400': { $ref: '#/components/responses/ErroNegocio' }
+        '422': { $ref: '#/components/responses/ErroValidacao' }
+
+  /auth/register:
+    post:
+      tags: [Autenticação]
+      summary: Cadastra um novo usuário (motorista, oficina ou admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201': { description: Usuário cadastrado com sucesso }
+        '400': { $ref: '#/components/responses/ErroNegocio' }
+        '422': { $ref: '#/components/responses/ErroValidacao' }
+
+  /oficinas:
+    get:
+      tags: [Oficinas]
+      summary: Lista todas as oficinas
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OficinaResponse' }
+    post:
+      tags: [Oficinas]
+      summary: Cadastra uma nova oficina (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OficinaRequest' }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OficinaResponse' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '422': { $ref: '#/components/responses/ErroValidacao' }
+
+  /oficinas/proximas:
+    get:
+      tags: [Oficinas]
+      summary: Busca oficinas num raio (km) a partir de uma coordenada (fórmula de Haversine, MySQL/MariaDB)
+      parameters:
+        - { name: latitude, in: query, required: true, schema: { type: number } }
+        - { name: longitude, in: query, required: true, schema: { type: number } }
+        - { name: raioKm, in: query, required: false, schema: { type: number, default: 10 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OficinaResponse' }
+
+  /oficinas/me:
+    get:
+      tags: [Oficinas]
+      summary: Retorna a oficina do usuário autenticado (não existe na API original; adicionado para o app mobile)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OficinaResponse' }
+        '400': { $ref: '#/components/responses/ErroNegocio' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /oficinas/{id}:
+    get:
+      tags: [Oficinas]
+      summary: Busca uma oficina por ID
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OficinaResponse' }
+        '400': { $ref: '#/components/responses/ErroNegocio' }
+
+  /servicos/oficina/{oficinaId}:
+    get:
+      tags: [Serviços]
+      summary: Lista os serviços de uma oficina
+      parameters:
+        - { name: oficinaId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Servico' }
+
+  /servicos:
+    post:
+      tags: [Serviços]
+      summary: Cadastra um serviço (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServicoRequest' }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Servico' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /modelos-veiculos/marcas:
+    get:
+      tags: [Modelos de Veículos]
+      summary: Busca marcas de veículos (autocomplete)
+      parameters:
+        - { name: q, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MarcaDTO' }
+
+  /modelos-veiculos/modelos:
+    get:
+      tags: [Modelos de Veículos]
+      summary: Busca modelos de uma marca (autocomplete)
+      parameters:
+        - { name: marcaId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: q, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ModeloVeiculoDTO' }
+
+  /modelos-veiculos/anos:
+    get:
+      tags: [Modelos de Veículos]
+      summary: Lista os anos disponíveis para um modelo
+      parameters:
+        - { name: modeloId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: integer }
+        '404': { description: Modelo não encontrado }
+
+  /motoristas:
+    post:
+      tags: [Motoristas]
+      summary: Cadastra um motorista (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MotoristaRequest' }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MotoristaResponse' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /motoristas/me:
+    get:
+      tags: [Motoristas]
+      summary: Retorna o motorista do usuário autenticado (não existe na API original; adicionado para o app mobile)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MotoristaResponse' }
+        '400': { $ref: '#/components/responses/ErroNegocio' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /motoristas/{id}:
+    get:
+      tags: [Motoristas]
+      summary: Busca um motorista por ID (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MotoristaResponse' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /veiculos:
+    post:
+      tags: [Veículos]
+      summary: Cadastra um veículo para o motorista autenticado
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VeiculoRequest' }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VeiculoResponse' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+    get:
+      tags: [Veículos]
+      summary: Lista os veículos do motorista autenticado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/VeiculoResponse' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /agendamentos:
+    post:
+      tags: [Agendamentos]
+      summary: Cria um agendamento (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AgendamentoRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agendamento' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '422': { $ref: '#/components/responses/ErroValidacao' }
+
+  /agendamentos/minhas:
+    get:
+      tags: [Agendamentos]
+      summary: Lista os agendamentos do motorista autenticado (não existe na API original; adicionado para o app mobile)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Agendamento' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /agendamentos/minha-oficina:
+    get:
+      tags: [Agendamentos]
+      summary: Lista os agendamentos recebidos pela oficina do usuário autenticado (não existe na API original; adicionado para o app mobile)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Agendamento' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /agendamentos/{id}:
+    get:
+      tags: [Agendamentos]
+      summary: Busca um agendamento por ID (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agendamento' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /agendamentos/oficina/{oficinaId}:
+    get:
+      tags: [Agendamentos]
+      summary: Lista agendamentos de uma oficina (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: oficinaId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Agendamento' }
+
+  /agendamentos/motorista/{motoristaId}:
+    get:
+      tags: [Agendamentos]
+      summary: Lista agendamentos de um motorista (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: motoristaId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Agendamento' }
+
+  /agendamentos/{id}/status:
+    patch:
+      tags: [Agendamentos]
+      summary: Atualiza o status de um agendamento (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: true, schema: { $ref: '#/components/schemas/StatusAgendamento' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Agendamento' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /avaliacoes:
+    post:
+      tags: [Avaliações]
+      summary: Registra a avaliação de um agendamento concluído (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AvaliacaoRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Avaliacao' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '422': { $ref: '#/components/responses/ErroValidacao' }
+
+  /avaliacoes/oficina/{oficinaId}:
+    get:
+      tags: [Avaliações]
+      summary: Lista avaliações de uma oficina (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: oficinaId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Avaliacao' }
+
+  /chat:
+    post:
+      tags: [Chat]
+      summary: >
+        Envia uma mensagem de chat vinculada a um agendamento (requer
+        autenticação). A mensagem também é transmitida em tempo real no
+        canal "agendamento.{agendamentoId}" (ver docs/websockets.md).
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MensagemChatRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MensagemChat' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /chat/agendamento/{agendamentoId}:
+    get:
+      tags: [Chat]
+      summary: Lista o histórico de mensagens de um agendamento (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: agendamentoId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MensagemChat' }
+
+  /garagem-virtual:
+    post:
+      tags: [Garagem Virtual]
+      summary: Registra um serviço realizado na garagem virtual do veículo (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GaragemVirtualRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GaragemVirtual' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+
+  /garagem-virtual/veiculo/{veiculoId}:
+    get:
+      tags: [Garagem Virtual]
+      summary: Lista o histórico de garagem virtual de um veículo (requer autenticação)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: veiculoId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/GaragemVirtual' }
