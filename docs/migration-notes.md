@@ -11,7 +11,7 @@ corrigir um bug, seja por adaptar algo ao idioma do Laravel.
    cadastro, então `ST_DWithin` nunca encontrava nada. Aqui a busca usa
    direto `latitude`/`longitude` (fórmula de Haversine em SQL), que são
    sempre preenchidas no cadastro — nunca fica vazia por esse motivo.
-   Ver [docs/mysql.md](mysql.md).
+   Ver [docs/postgres.md](postgres.md).
 
 2. **`Authentication#getName()` não retornava o e-mail.** Em
    `VeiculoController.java`, o código assumia que
@@ -61,7 +61,7 @@ corrigir um bug, seja por adaptar algo ao idioma do Laravel.
    próximas. Como o alvo de implantação deste porte é MySQL (XAMPP), a
    busca por proximidade foi reescrita com a fórmula de Haversine em
    SQL puro — sem nenhuma extensão espacial. Ver
-   [docs/mysql.md](mysql.md). A coluna `localizacao` (geometry) da
+   [docs/postgres.md](postgres.md). A coluna `localizacao` (geometry) da
    entidade `Endereco.java` não existe mais: o campo `localizacao` no
    JSON de resposta continua existindo (GeoJSON), mas agora é só uma
    representação calculada de `latitude`/`longitude`, nunca persistida

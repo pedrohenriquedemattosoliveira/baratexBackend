@@ -11,8 +11,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Sem seeds padrão. Popule marcas/modelos de veículos (tabelas
-        // "marcas" e "modelos_veiculos") manualmente ou com um seeder
-        // próprio antes de testar o fluxo de cadastro de veículos.
+        // Catálogo de marcas/modelos: necessário para o cadastro de
+        // veículos do app. Idempotente — seguro rodar em qualquer deploy.
+        $this->call(MarcaModeloSeeder::class);
+
+        // Usuários/oficinas de demonstração ficam em DemoSeeder, que só
+        // roda quando chamado explicitamente:
+        //   php artisan db:seed --class=DemoSeeder
     }
 }

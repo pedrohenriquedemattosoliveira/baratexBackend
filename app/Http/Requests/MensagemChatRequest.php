@@ -14,8 +14,10 @@ class MensagemChatRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'agendamentoId' => ['required', 'uuid'],
-            'remetenteId' => ['required', 'uuid'],
+            'agendamentoId' => ['required', 'uuid', 'exists:agendamentos,id'],
+            // Mantido só por compatibilidade com a API original: o
+            // remetente gravado é sempre o usuário autenticado (JWT).
+            'remetenteId' => ['nullable', 'uuid'],
             'conteudo' => ['required', 'string'],
         ];
     }
@@ -24,7 +26,7 @@ class MensagemChatRequest extends FormRequest
     {
         return [
             'agendamentoId.required' => 'O ID do agendamento é obrigatório.',
-            'remetenteId.required' => 'O ID do remetente é obrigatório.',
+            'agendamentoId.exists' => 'Agendamento não encontrado.',
             'conteudo.required' => 'O conteúdo da mensagem é obrigatório.',
         ];
     }

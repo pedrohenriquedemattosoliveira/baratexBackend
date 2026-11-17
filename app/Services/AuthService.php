@@ -13,6 +13,7 @@ class AuthService
 {
     public function __construct(
         private readonly JwtService $jwtService,
+        private readonly OficinaService $oficinaService,
     ) {}
 
     public function login(string $email, string $senha): array
@@ -36,12 +37,17 @@ class AuthService
     }
 
     /**
+     * Cadastra o usuário e, conforme o tipo, o perfil correspondente:
+     * MOTORISTA cria o Motorista (CPF obrigatório); OFICINA cria a Oficina
+     * e o Endereco quando os dados da oficina são enviados (é o
+     * auto-cadastro de prestador usado pelo app).
+     *
      * @return Usuario|string retorna a Usuario criado, ou uma string com a
      *                        mensagem de erro de negócio (400) a ser exibida.
      */
     public function registrar(array $dados): Usuario|string
     {
-        $existente = Usuario::where('email', $dados['email'])->first();
+        $existente = Usuario::query()->whereRaw('LOWER(email) = LOWER(?)', [$dados['email']])->first();
 
         if ($existente) {
             return 'E-mail já cadastrado.';
@@ -65,10 +71,18 @@ class AuthService
                     throw new NegocioException('O CPF é obrigatório para cadastrar um motorista.');
                 }
 
+                if (Motorista::where('cpf', $cpf)->exists()) {
+                    throw new NegocioException('CPF já cadastrado.');
+                }
+
                 Motorista::create([
                     'usuario_id' => $usuario->id,
                     'cpf' => $cpf,
                 ]);
+            }
+
+            if ($tipoUsuario === TipoUsuario::OFICINA && ! empty($dados['oficina'])) {
+                $this->oficinaService->criarParaUsuario($usuario, $dados['oficina']);
             }
 
             return $usuario;

@@ -23,7 +23,7 @@ class GaragemVirtualService
 
     public function listarPorVeiculo(string $veiculoId)
     {
-        return GaragemVirtual::with('agendamento.oficina')
+        return GaragemVirtual::with(['agendamento.oficina', 'agendamento.itens.servico'])
             ->whereHas('agendamento', fn ($q) => $q->where('veiculo_id', $veiculoId))
             ->orderByDesc('data_servico')
             ->get();

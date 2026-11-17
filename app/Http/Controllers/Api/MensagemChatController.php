@@ -15,7 +15,7 @@ class MensagemChatController extends Controller
 
     public function store(MensagemChatRequest $request)
     {
-        return (new MensagemChatResource($this->service->enviarMensagem($request->validated())))
+        return (new MensagemChatResource($this->service->enviarMensagem($request->validated(), $request->user())))
             ->response()
             ->setStatusCode(200);
     }

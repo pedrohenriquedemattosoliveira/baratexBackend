@@ -12,14 +12,25 @@ use Illuminate\Support\Facades\Hash;
 
 class OficinaService
 {
+    /**
+     * Relações + agregados de avaliação (nota média / total) usados pelo
+     * OficinaResource em todas as listagens.
+     */
+    private function consulta()
+    {
+        return Oficina::with(['usuario', 'endereco'])
+            ->withAvg('avaliacoes', 'nota')
+            ->withCount('avaliacoes');
+    }
+
     public function listarTodas()
     {
-        return Oficina::with(['usuario', 'endereco'])->get();
+        return $this->consulta()->orderBy('nome_fantasia')->get();
     }
 
     public function buscarPorId(string $id): Oficina
     {
-        $oficina = Oficina::with(['usuario', 'endereco'])->find($id);
+        $oficina = $this->consulta()->find($id);
 
         if (! $oficina) {
             throw new NegocioException("Oficina não encontrada com o ID: {$id}");
@@ -30,6 +41,10 @@ class OficinaService
 
     public function salvar(array $dados): Oficina
     {
+        if (Usuario::whereRaw('LOWER(email) = LOWER(?)', [$dados['usuario']['email']])->exists()) {
+            throw new NegocioException('E-mail já cadastrado.');
+        }
+
         return DB::transaction(function () use ($dados) {
             $usuario = Usuario::create([
                 'nome' => $dados['usuario']['nome'],
@@ -39,54 +54,81 @@ class OficinaService
                 'tipo_usuario' => TipoUsuario::OFICINA,
             ]);
 
-            $endereco = Endereco::create([
-                'logradouro' => $dados['endereco']['logradouro'],
-                'numero' => $dados['endereco']['numero'],
-                'bairro' => $dados['endereco']['bairro'],
-                'cidade' => $dados['endereco']['cidade'],
-                'estado' => $dados['endereco']['estado'],
-                'cep' => $dados['endereco']['cep'],
-                'latitude' => $dados['endereco']['latitude'] ?? null,
-                'longitude' => $dados['endereco']['longitude'] ?? null,
-            ]);
-
-            $oficina = Oficina::create([
-                'razao_social' => $dados['razaoSocial'],
-                'nome_fantasia' => $dados['nomeFantasia'],
-                'cnpj' => $dados['cnpj'],
-                'usuario_id' => $usuario->id,
-                'endereco_id' => $endereco->id,
-            ]);
-
-            return $oficina->load(['usuario', 'endereco']);
+            return $this->criarParaUsuario($usuario, $dados);
         });
     }
 
     /**
-     * Equivalente a OficinaRepository#buscarProximosNative, mas sem
-     * depender de uma extensão espacial (PostGIS): calcula a distância
-     * em km pela fórmula de Haversine diretamente em SQL, usando as
-     * colunas planas latitude/longitude — funciona em MySQL/MariaDB
-     * puro (XAMPP incluso). Não suportado em SQLite (sem funções
-     * trigonométricas nativas), usado apenas nos testes automatizados.
+     * Cria a Oficina (+ Endereco) de um usuário já existente. Usado por
+     * salvar() e pelo auto-cadastro de prestador em
+     * AuthService::registrar() (POST /api/auth/register com
+     * tipoUsuario=OFICINA).
+     *
+     * @param  array  $dados  razaoSocial, nomeFantasia, cnpj, endereco{...}
+     */
+    public function criarParaUsuario(Usuario $usuario, array $dados): Oficina
+    {
+        $cnpj = preg_replace('/\D/', '', (string) $dados['cnpj']);
+
+        if (Oficina::where('cnpj', $cnpj)->exists()) {
+            throw new NegocioException('CNPJ já cadastrado.');
+        }
+
+        $endereco = Endereco::create([
+            'logradouro' => $dados['endereco']['logradouro'],
+            'numero' => $dados['endereco']['numero'],
+            'complemento' => $dados['endereco']['complemento'] ?? null,
+            'bairro' => $dados['endereco']['bairro'],
+            'cidade' => $dados['endereco']['cidade'],
+            'estado' => mb_strtoupper($dados['endereco']['estado']),
+            'cep' => $dados['endereco']['cep'],
+            'latitude' => $dados['endereco']['latitude'] ?? null,
+            'longitude' => $dados['endereco']['longitude'] ?? null,
+        ]);
+
+        $oficina = Oficina::create([
+            'razao_social' => $dados['razaoSocial'],
+            'nome_fantasia' => $dados['nomeFantasia'],
+            'cnpj' => $cnpj,
+            'usuario_id' => $usuario->id,
+            'endereco_id' => $endereco->id,
+        ]);
+
+        return $oficina->load(['usuario', 'endereco']);
+    }
+
+    /**
+     * Equivalente a OficinaRepository#buscarProximosNative: oficinas a até
+     * $raioKm do ponto informado, da mais próxima para a mais distante,
+     * via PostGIS (ST_DWithin + ST_Distance sobre a coluna geography
+     * "enderecos.localizacao", indexada com GiST). Cada oficina devolvida
+     * leva o atributo "distancia_km".
+     *
+     * Exige PostgreSQL + PostGIS — não suportado no SQLite usado pela
+     * suíte de testes.
      */
     public function buscarProximos(float $latitude, float $longitude, float $raioKm)
     {
-        if (! in_array(DB::connection()->getDriverName(), ['mysql', 'pgsql'], true)) {
-            throw new NegocioException('A busca de oficinas próximas não é suportada neste banco de dados.');
+        if (DB::connection()->getDriverName() !== 'pgsql') {
+            throw new NegocioException('A busca de oficinas próximas exige PostgreSQL com PostGIS.');
         }
 
-        $ids = DB::table('oficinas as o')
-            ->join('enderecos as e', 'o.endereco_id', '=', 'e.id')
-            ->whereNotNull('e.latitude')
-            ->whereNotNull('e.longitude')
-            ->whereRaw(
-                '6371 * ACOS(LEAST(1, COS(RADIANS(?)) * COS(RADIANS(e.latitude)) * COS(RADIANS(e.longitude) - RADIANS(?)) + SIN(RADIANS(?)) * SIN(RADIANS(e.latitude)))) <= ?',
-                [$latitude, $longitude, $latitude, $raioKm]
-            )
-            ->pluck('o.id');
+        // PostGIS usa a ordem (longitude, latitude) em ST_MakePoint.
+        $ponto = 'ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography';
 
-        return Oficina::with(['usuario', 'endereco'])->whereIn('id', $ids)->get();
+        $distancias = DB::table('oficinas as o')
+            ->join('enderecos as e', 'o.endereco_id', '=', 'e.id')
+            ->selectRaw("o.id, ST_Distance(e.localizacao, {$ponto}) / 1000 as distancia_km", [$longitude, $latitude])
+            ->whereRaw("ST_DWithin(e.localizacao, {$ponto}, ?)", [$longitude, $latitude, $raioKm * 1000])
+            ->orderBy('distancia_km')
+            ->pluck('distancia_km', 'o.id');
+
+        return $this->consulta()
+            ->whereIn('id', $distancias->keys())
+            ->get()
+            ->each(fn (Oficina $oficina) => $oficina->setAttribute('distancia_km', round((float) $distancias[$oficina->id], 2)))
+            ->sortBy('distancia_km')
+            ->values();
     }
 
     /**
@@ -96,7 +138,7 @@ class OficinaService
      */
     public function buscarPorUsuario(Usuario $usuario): Oficina
     {
-        $oficina = Oficina::with(['usuario', 'endereco'])->where('usuario_id', $usuario->id)->first();
+        $oficina = $this->consulta()->where('usuario_id', $usuario->id)->first();
 
         if (! $oficina) {
             throw new NegocioException('Nenhum cadastro de oficina encontrado para este usuário.');

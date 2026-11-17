@@ -28,11 +28,14 @@ class Endereco extends Model
 
     /**
      * Representação GeoJSON do ponto, equivalente ao
-     * `getLocalizacaoGeoJson()` do Endereco.java original. Calculada
-     * puramente a partir de latitude/longitude — não há coluna de
-     * geometria no banco (MySQL/MariaDB puro, sem extensão espacial);
-     * a busca por proximidade usa a fórmula de Haversine em
-     * App\Services\OficinaService::buscarProximos().
+     * `getLocalizacaoGeoJson()` do Endereco.java original, calculada a
+     * partir de latitude/longitude.
+     *
+     * No PostgreSQL existe também a coluna física "localizacao"
+     * (geography, gerada pelo banco — ver a migration
+     * add_localizacao_postgis_to_enderecos), usada só nas consultas
+     * espaciais de App\Services\OficinaService::buscarProximos(). Este
+     * accessor tem precedência sobre o valor bruto (WKB) dela.
      */
     protected function localizacao(): Attribute
     {

@@ -14,7 +14,7 @@ da API original, escrita em **Java 21 + Spring Boot** (Maven,
 | Camada | Original (Java) | Aqui (Laravel) |
 |---|---|---|
 | Framework | Spring Boot 4 | Laravel 13 |
-| Banco | PostgreSQL + PostGIS | MySQL/MariaDB (XAMPP) — ver [docs/mysql.md](docs/mysql.md) |
+| Banco | PostgreSQL + PostGIS | PostgreSQL + PostGIS — ver [docs/postgres.md](docs/postgres.md) |
 | ORM | Hibernate/JPA | Eloquent |
 | Autenticação | JWT manual (JJWT) + filtro Spring Security | JWT manual (`firebase/php-jwt`) + guard dedicado |
 | Tempo real | WebSocket STOMP/SockJS | Laravel Broadcasting (Reverb) — ver [docs/websockets.md](docs/websockets.md) |
@@ -22,9 +22,9 @@ da API original, escrita em **Java 21 + Spring Boot** (Maven,
 
 ## Requisitos
 
-- PHP 8.3+ com as extensões `pdo_mysql`, `mysqli`, `mbstring`, `openssl`, `curl`, `zip`
+- PHP 8.3+ com as extensões `pdo_pgsql`, `mbstring`, `openssl`, `curl`, `zip`
 - Composer 2
-- MySQL/MariaDB — por exemplo, o MySQL que vem no **XAMPP** (ver [docs/mysql.md](docs/mysql.md))
+- PostgreSQL 14+ com **PostGIS** (ver [docs/postgres.md](docs/postgres.md))
 
 ## Instalação
 
@@ -34,20 +34,14 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-Com o Apache + MySQL do XAMPP rodando, crie o banco `baratex_db` (veja
-[docs/mysql.md](docs/mysql.md)) e ajuste `.env` se seu usuário/senha do
-MySQL não forem os padrões do XAMPP (`root`, sem senha, porta `3306`).
-Depois:
+Edite o `.env` (tudo é configurado por variáveis de ambiente — veja a
+tabela abaixo), crie o banco e rode as migrations e o seeder de
+marcas/modelos:
 
 ```bash
 php artisan migrate
-```
-
-Para desenvolvimento rápido sem MySQL (perdendo apenas
-`GET /api/oficinas/proximas`), troque no `.env`:
-
-```env
-DB_CONNECTION=sqlite
+php artisan db:seed            # catálogo de marcas/modelos (idempotente)
+php artisan db:seed --class=DemoSeeder   # opcional: dados de demonstração (dev)
 ```
 
 ## Executando
@@ -134,9 +128,14 @@ Agendamento ──< GaragemVirtual
 
 ## Variáveis de ambiente relevantes
 
-| Variável | Equivalente original | Descrição |
-|---|---|---|
-| `JWT_SECRET` | `api.jwt.secret` | Segredo HMAC do JWT |
-| `JWT_TTL_MINUTES` | `api.jwt.expiration` (ms) | Validade do token, em minutos |
-| `DB_*` | `spring.datasource.*` | Conexão com o MySQL/MariaDB |
-| `BROADCAST_CONNECTION` | — (STOMP embutido) | `log` (padrão) ou `reverb` para WebSocket real |
+| Variável | Descrição |
+|---|---|
+| `APP_KEY`, `APP_URL`, `APP_ENV`, `APP_DEBUG`, `APP_TIMEZONE` | Básicas do Laravel (`php artisan key:generate`) |
+| `DB_URL` | URL única do Postgres (`postgresql://user:senha@host:5432/db`); tem prioridade sobre as `DB_*` |
+| `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_SSLMODE` | Conexão com o PostgreSQL (use `DB_SSLMODE=require` em bancos gerenciados) |
+| `JWT_SECRET` | Segredo HMAC do JWT — **obrigatório, mín. 32 caracteres** |
+| `JWT_TTL_MINUTES` | Validade do token, em minutos |
+| `CORS_ALLOWED_ORIGINS` | Origens liberadas, separadas por vírgula (`*` = todas) |
+| `BROADCAST_CONNECTION` | `log` (padrão) ou `reverb` para WebSocket real |
+
+O app mobile/web consome a API com `EXPO_PUBLIC_API_URL` (ver `frontBaratex/.env.example`).

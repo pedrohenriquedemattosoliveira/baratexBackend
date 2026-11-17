@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\NegocioException;
 use App\Models\Avaliacao;
 use Illuminate\Validation\ValidationException;
 
@@ -13,6 +14,10 @@ class AvaliacaoService
             throw ValidationException::withMessages([
                 'nota' => 'A nota deve estar entre 1 e 5.',
             ]);
+        }
+
+        if (Avaliacao::where('agendamento_id', $dados['agendamentoId'])->exists()) {
+            throw new NegocioException('Este agendamento já foi avaliado.');
         }
 
         return Avaliacao::create([

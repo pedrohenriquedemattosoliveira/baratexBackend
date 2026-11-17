@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Oficina extends Model
 {
@@ -51,5 +52,13 @@ class Oficina extends Model
     public function agendamentos(): HasMany
     {
         return $this->hasMany(Agendamento::class, 'oficina_id');
+    }
+
+    /**
+     * Avaliações recebidas (cada uma pertence a um agendamento da oficina).
+     */
+    public function avaliacoes(): HasManyThrough
+    {
+        return $this->hasManyThrough(Avaliacao::class, Agendamento::class, 'oficina_id', 'agendamento_id');
     }
 }

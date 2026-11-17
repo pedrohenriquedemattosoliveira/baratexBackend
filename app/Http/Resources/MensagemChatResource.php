@@ -13,6 +13,7 @@ class MensagemChatResource extends JsonResource
             'id' => $this->id,
             'agendamentoId' => $this->agendamento_id,
             'remetenteId' => $this->remetente_id,
+            'remetenteNome' => $this->whenLoaded('remetente', fn () => $this->remetente?->nome),
             'conteudo' => $this->conteudo,
             'enviadoEm' => $this->enviado_em?->toIso8601String(),
         ];

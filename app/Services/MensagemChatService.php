@@ -4,16 +4,19 @@ namespace App\Services;
 
 use App\Events\MensagemEnviada;
 use App\Models\MensagemChat;
+use App\Models\Usuario;
 
 class MensagemChatService
 {
-    public function enviarMensagem(array $dados): MensagemChat
+    public function enviarMensagem(array $dados, Usuario $remetente): MensagemChat
     {
         $mensagem = MensagemChat::create([
             'agendamento_id' => $dados['agendamentoId'],
-            'remetente_id' => $dados['remetenteId'],
+            'remetente_id' => $remetente->id,
             'conteudo' => $dados['conteudo'],
         ]);
+
+        $mensagem->setRelation('remetente', $remetente);
 
         // Substitui o push via STOMP ("/topic/agendamento/{id}") do
         // ChatWebSocketController.java: o envio por REST já notifica,
@@ -25,7 +28,8 @@ class MensagemChatService
 
     public function listarPorAgendamento(string $agendamentoId)
     {
-        return MensagemChat::where('agendamento_id', $agendamentoId)
+        return MensagemChat::with('remetente')
+            ->where('agendamento_id', $agendamentoId)
             ->orderBy('enviado_em')
             ->get();
     }

@@ -7,6 +7,7 @@ use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Firebase\JWT\SignatureInvalidException;
+use RuntimeException;
 use UnexpectedValueException;
 
 /**
@@ -23,6 +24,10 @@ class JwtService
     public function __construct()
     {
         $this->secret = (string) config('jwt.secret');
+
+        if (strlen($this->secret) < 32) {
+            throw new RuntimeException('JWT_SECRET ausente ou curto demais: defina no ambiente um segredo com pelo menos 32 caracteres.');
+        }
         $this->ttlMinutes = (int) config('jwt.ttl_minutes');
     }
 

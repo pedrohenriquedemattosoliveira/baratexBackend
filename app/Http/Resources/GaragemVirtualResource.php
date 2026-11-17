@@ -23,7 +23,12 @@ class GaragemVirtualResource extends JsonResource
             'oficina' => $this->whenLoaded('agendamento', fn () => $this->agendamento?->oficina ? [
                 'id' => $this->agendamento->oficina->id,
                 'nomeFantasia' => $this->agendamento->oficina->nome_fantasia,
+                'cnpj' => $this->agendamento->oficina->cnpj,
             ] : null),
+            'servicos' => $this->when(
+                $this->relationLoaded('agendamento') && $this->agendamento?->relationLoaded('itens'),
+                fn () => $this->agendamento->itens->map(fn ($item) => $item->servico?->nome)->filter()->values(),
+            ),
         ];
     }
 }

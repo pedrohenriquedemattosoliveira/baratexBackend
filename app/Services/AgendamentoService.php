@@ -9,20 +9,23 @@ use App\Models\Motorista;
 use App\Models\Oficina;
 use App\Models\Servico;
 use App\Models\Usuario;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class AgendamentoService
 {
     /**
      * Relações sempre carregadas junto do Agendamento, para o
-     * AgendamentoResource conseguir montar os resumos de "oficina" e
-     * "veiculo" sem N+1 queries.
+     * AgendamentoResource conseguir montar os resumos (oficina, veículo,
+     * serviços, avaliação e registro na garagem) sem N+1 queries.
      */
     private const COM_RELACOES = [
         'itens.servico',
-        'oficina',
+        'oficina.usuario',
         'veiculo.modelo.marca',
         'veiculo.motorista.usuario',
+        'avaliacao',
+        'registrosGaragem',
     ];
 
     public function __construct(
@@ -35,7 +38,10 @@ class AgendamentoService
             $agendamento = new Agendamento([
                 'oficina_id' => $dados['oficinaId'],
                 'veiculo_id' => $dados['veiculoId'],
-                'data_hora' => $dados['dataHora'],
+                // A coluna não guarda fuso: normaliza para o fuso da
+                // aplicação, para que "2026-11-17T13:00:00Z" e
+                // "2026-11-17T10:00:00-03:00" gravem o mesmo instante.
+                'data_hora' => Carbon::parse($dados['dataHora'])->setTimezone(config('app.timezone')),
                 'status' => StatusAgendamento::PENDENTE,
                 'valor_total' => 0,
             ]);
@@ -44,20 +50,20 @@ class AgendamentoService
             $valorTotal = 0;
 
             foreach ($dados['itens'] as $itemDados) {
-                $precoPraticado = $itemDados['precoPraticado'] ?? null;
+                $servico = Servico::find($itemDados['servicoId']);
 
-                if ($precoPraticado === null) {
-                    $servico = Servico::find($itemDados['servicoId']);
-
-                    if (! $servico) {
-                        throw new NegocioException("Serviço não encontrado: {$itemDados['servicoId']}");
-                    }
-
-                    $precoPraticado = $servico->preco_base;
+                if (! $servico) {
+                    throw new NegocioException("Serviço não encontrado: {$itemDados['servicoId']}");
                 }
 
+                if ($servico->oficina_id !== $agendamento->oficina_id) {
+                    throw new NegocioException("O serviço \"{$servico->nome}\" não pertence à oficina selecionada.");
+                }
+
+                $precoPraticado = $itemDados['precoPraticado'] ?? $servico->preco_base;
+
                 $agendamento->itens()->create([
-                    'servico_id' => $itemDados['servicoId'],
+                    'servico_id' => $servico->id,
                     'preco_praticado' => $precoPraticado,
                 ]);
 
@@ -84,13 +90,17 @@ class AgendamentoService
 
     public function listarPorOficina(string $oficinaId)
     {
-        return Agendamento::with(self::COM_RELACOES)->where('oficina_id', $oficinaId)->get();
+        return Agendamento::with(self::COM_RELACOES)
+            ->where('oficina_id', $oficinaId)
+            ->orderBy('data_hora')
+            ->get();
     }
 
     public function listarPorMotorista(string $motoristaId)
     {
         return Agendamento::with(self::COM_RELACOES)
             ->whereHas('veiculo', fn ($q) => $q->where('motorista_id', $motoristaId))
+            ->orderByDesc('data_hora')
             ->get();
     }
 

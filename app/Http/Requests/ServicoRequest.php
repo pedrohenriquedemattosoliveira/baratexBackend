@@ -16,9 +16,11 @@ class ServicoRequest extends FormRequest
         return [
             'nome' => ['required', 'string'],
             'descricao' => ['nullable', 'string'],
-            'preco' => ['required', 'numeric'],
-            'tempoEstimadoMinutos' => ['nullable', 'integer'],
-            'oficinaId' => ['required', 'uuid'],
+            'preco' => ['required', 'numeric', 'min:0'],
+            'tempoEstimadoMinutos' => ['nullable', 'integer', 'min:1'],
+            // Opcional: sem ele, o serviço é criado na oficina do usuário
+            // autenticado (app do prestador).
+            'oficinaId' => ['nullable', 'uuid'],
         ];
     }
 
@@ -27,7 +29,6 @@ class ServicoRequest extends FormRequest
         return [
             'nome.required' => 'O campo nome é obrigatório.',
             'preco.required' => 'O campo preco é obrigatório.',
-            'oficinaId.required' => 'O campo oficinaId é obrigatório.',
         ];
     }
 }

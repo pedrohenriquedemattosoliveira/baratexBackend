@@ -14,9 +14,9 @@ class GaragemVirtualRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'agendamentoId' => ['required', 'uuid'],
+            'agendamentoId' => ['required', 'uuid', 'exists:agendamentos,id'],
             'dataServico' => ['required', 'date'],
-            'quilometragemRegistro' => ['required', 'integer'],
+            'quilometragemRegistro' => ['required', 'integer', 'min:0'],
             'descricaoServico' => ['required', 'string'],
             'validadoOficina' => ['nullable', 'boolean'],
         ];
@@ -26,6 +26,7 @@ class GaragemVirtualRequest extends FormRequest
     {
         return [
             'agendamentoId.required' => 'O ID do agendamento é obrigatório.',
+            'agendamentoId.exists' => 'Agendamento não encontrado.',
             'dataServico.required' => 'A data do serviço é obrigatória.',
             'quilometragemRegistro.required' => 'A quilometragem do registro é obrigatória.',
             'descricaoServico.required' => 'A descrição do serviço é obrigatória.',

@@ -25,8 +25,16 @@ class OficinaResource extends JsonResource
             'bairro' => $this->endereco?->bairro,
             'cidade' => $this->endereco?->cidade,
             'estado' => $this->endereco?->estado,
+            'cep' => $this->endereco?->cep,
             'latitude' => $this->endereco?->latitude,
             'longitude' => $this->endereco?->longitude,
+
+            // Agregados das avaliações (sem equivalente na API original).
+            'notaMedia' => $this->avaliacoes_avg_nota !== null ? round((float) $this->avaliacoes_avg_nota, 1) : null,
+            'totalAvaliacoes' => (int) ($this->avaliacoes_count ?? 0),
+
+            // Só vem preenchido em GET /api/oficinas/proximas.
+            'distanciaKm' => $this->distancia_km,
         ];
     }
 }

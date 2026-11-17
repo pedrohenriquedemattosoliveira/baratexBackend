@@ -1,32 +1,38 @@
 <?php
 
-return [
+/*
+|--------------------------------------------------------------------------
+| Cross-Origin Resource Sharing (CORS)
+|--------------------------------------------------------------------------
+|
+| As origens liberadas vêm de CORS_ALLOWED_ORIGINS (lista separada por
+| vírgula; "*" libera todas). A API é stateless e autentica por
+| "Authorization: Bearer <token>" — sem cookies —, então
+| supports_credentials fica desligado (o que também permite o "*").
+|
+*/
 
-    /*
-    |--------------------------------------------------------------------------
-    | Cross-Origin Resource Sharing (CORS)
-    |--------------------------------------------------------------------------
-    |
-    | Equivalente ao CorsConfigurationSource definido em SecurityConfig.java:
-    | libera qualquer origem, os métodos usados pela API e os headers
-    | necessários para o envio do Bearer token.
-    |
-    */
+$origens = array_values(array_filter(array_map(
+    fn (string $origem) => rtrim(trim($origem), '/'),
+    explode(',', (string) env('CORS_ALLOWED_ORIGINS', '*')),
+)));
+
+return [
 
     'paths' => ['api/*'],
 
     'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => $origens ?: ['*'],
 
-    'allowed_origins_patterns' => ['*'],
+    'allowed_origins_patterns' => [],
 
     'allowed_headers' => ['Authorization', 'Content-Type', 'X-Requested-With', 'Accept'],
 
     'exposed_headers' => [],
 
-    'max_age' => 0,
+    'max_age' => 3600,
 
-    'supports_credentials' => true,
+    'supports_credentials' => false,
 
 ];

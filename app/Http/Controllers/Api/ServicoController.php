@@ -20,7 +20,7 @@ class ServicoController extends Controller
 
     public function store(ServicoRequest $request)
     {
-        return (new ServicoResource($this->service->salvar($request->validated())))
+        return (new ServicoResource($this->service->salvar($request->validated(), $request->user())))
             ->response()
             ->setStatusCode(201);
     }

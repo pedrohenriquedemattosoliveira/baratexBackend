@@ -14,7 +14,7 @@ class AvaliacaoRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'agendamentoId' => ['required', 'uuid'],
+            'agendamentoId' => ['required', 'uuid', 'exists:agendamentos,id'],
             'nota' => ['required', 'integer', 'min:1', 'max:5'],
             'comentario' => ['nullable', 'string'],
         ];
@@ -24,6 +24,7 @@ class AvaliacaoRequest extends FormRequest
     {
         return [
             'agendamentoId.required' => 'O ID do agendamento é obrigatório.',
+            'agendamentoId.exists' => 'Agendamento não encontrado.',
             'nota.required' => 'A nota é obrigatória.',
             'nota.min' => 'A nota deve estar entre 1 e 5.',
             'nota.max' => 'A nota deve estar entre 1 e 5.',
